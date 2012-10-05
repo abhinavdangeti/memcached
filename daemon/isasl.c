@@ -99,6 +99,25 @@ static const char *get_isasl_filename(void)
     return getenv("ISASL_PWFILE");
 }
 
+static char* get_next_field(char **field, char* itr) {
+    char *len = itr;
+    while (*itr && *itr != ':') {
+        itr++;
+    }
+    if (*itr != '\0') {
+        *itr = '\0';
+        itr++;
+    }
+
+    *field = itr;
+    itr = itr + atoi(len);
+    if (*itr != '\0') {
+        *itr = '\0';
+        itr++;
+    }
+    return itr;
+}
+
 static int load_user_db(void)
 {
     const char *filename = get_isasl_filename();
@@ -106,7 +125,7 @@ static int load_user_db(void)
         return SASL_OK;
     }
 
-    FILE *sfile = fopen(filename, "r");
+    FILE *sfile = fopen(filename, "rb");
     if (!sfile) {
         return SASL_FAIL;
     }
@@ -119,48 +138,31 @@ static int load_user_db(void)
         return SASL_NOMEM;
     }
 
-    // File has lines that are newline terminated.
-    // File may have comment lines that must being with '#'.
-    // Lines should look like...
-    //   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
+    fseek(sfile, 0L, SEEK_END);
+    long sz = ftell(sfile);
+    fseek(sfile, 0L, SEEK_SET);
+
+    // Entries should be formatted as they are below. Do not add new lines
+    // between entries.
+    //   <LEN>:<NAME>,<LEN>:<PASSWORD>,<LEN>:<CONFIG>,
     //
-    char up[128];
-    while (fgets(up, sizeof(up), sfile)) {
-        if (up[0] != '#') {
-            char *uname = up, *p = up, *cfg = NULL;
+    char up[sz+1];
+    if (fread(up, sizeof(char), sz, sfile) != sz) {
+        return SASL_FAIL;
+    }
+    up[sz] = '\0';
+
+    char *itr = up;
+    while (itr < &up[sz]) {
+            char* uname;
+            char* pass;
+            char* cfg;
+
             kill_whitey(up);
-            while (*p && !isspace(p[0])) {
-                p++;
-            }
-            // If p is pointing at a NUL, there's nothing after the username.
-            if (p[0] != '\0') {
-                p[0] = '\0';
-                p++;
-            }
-            // p now points to the first character after the (now)
-            // null-terminated username.
-            while (*p && isspace(*p)) {
-                p++;
-            }
-            // p now points to the first non-whitespace character
-            // after the above
-            cfg = p;
-            if (cfg[0] != '\0') {
-                // move cfg past the password
-                while (*cfg && !isspace(cfg[0])) {
-                    cfg++;
-                }
-                if (cfg[0] != '\0') {
-                    cfg[0] = '\0';
-                    cfg++;
-                    // Skip whitespace
-                    while (*cfg && isspace(cfg[0])) {
-                        cfg++;
-                    }
-                }
-            }
-            store_pw(new_ut, uname, p, cfg);
-       }
+            itr = get_next_field(&uname, itr);
+            itr = get_next_field(&pass, itr);
+            itr = get_next_field(&cfg, itr);
+            store_pw(new_ut, uname, pass, cfg);
     }
 
     fclose(sfile);
