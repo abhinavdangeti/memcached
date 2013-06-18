@@ -110,7 +110,7 @@ static char* get_next_field(char **field, char* itr) {
     }
 
     *field = itr;
-    itr = itr + atoi(len);
+    itr = itr + atol(len);
     if (*itr != '\0') {
         *itr = '\0';
         itr++;
