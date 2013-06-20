@@ -20,7 +20,7 @@ static user_db_entry_t **user_ht;
 static const int n_uht_buckets = 12289;
 
 static void kill_whitey(char *s) {
-    for (int i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
+    for (int i = strlen(s); i > 0 && isspace(s[i]); i--) {
         s[i] = '\0';
     }
 }
@@ -101,6 +101,10 @@ static const char *get_isasl_filename(void)
 
 static char* get_next_field(char **field, char* itr) {
     char *len = itr;
+    if (*itr == '\n') {
+        *field = "";
+        return ++itr;
+    }
     while (*itr && *itr != ':') {
         itr++;
     }
@@ -154,15 +158,15 @@ static int load_user_db(void)
 
     char *itr = up;
     while (itr < &up[sz]) {
-            char* uname;
-            char* pass;
-            char* cfg;
+        char* uname;
+        char* pass;
+        char* cfg;
 
-            kill_whitey(up);
-            itr = get_next_field(&uname, itr);
-            itr = get_next_field(&pass, itr);
-            itr = get_next_field(&cfg, itr);
-            store_pw(new_ut, uname, pass, cfg);
+        kill_whitey(up);
+        itr = get_next_field(&uname, itr);
+        itr = get_next_field(&pass, itr);
+        itr = get_next_field(&cfg, itr);
+        store_pw(new_ut, uname, pass, cfg);
     }
 
     fclose(sfile);
