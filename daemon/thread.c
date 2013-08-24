@@ -506,11 +506,16 @@ void dispatch_conn_new(SOCKET sfd, int parent_port,
                        STATE_FUNC init_state, int event_flags,
                        int read_buffer_size, enum network_transport transport) {
     CQ_ITEM *item = cqi_new();
-    int tid = (last_thread + 1) % settings.num_threads;
+    int tid = 0;
+
+    if (parent_port == 11210) {
+        tid = (last_thread + 1) % settings.num_threads;
+        last_thread = tid;
+    } else {
+        tid = 4;
+    }
 
     LIBEVENT_THREAD *thread = threads + tid;
-
-    last_thread = tid;
 
     item->sfd = sfd;
     item->parent_port = parent_port;
