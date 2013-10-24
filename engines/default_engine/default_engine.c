@@ -42,7 +42,8 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      item** item,
                                      const void* key,
                                      const int nkey,
-                                     uint16_t vbucket);
+                                     uint16_t vbucket,
+                                     ADD_RESPONSE response);
 static ENGINE_ERROR_CODE default_get_stats(ENGINE_HANDLE* handle,
                   const void *cookie,
                   const char *stat_key,
@@ -54,7 +55,8 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        item* item,
                                        uint64_t *cas,
                                        ENGINE_STORE_OPERATION operation,
-                                       uint16_t vbucket);
+                                       uint16_t vbucket,
+                                       ADD_RESPONSE response);
 static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
                                             const void* cookie,
                                             const void* key,
@@ -66,7 +68,8 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
                                             const rel_time_t exptime,
                                             uint64_t *cas,
                                             uint64_t *result,
-                                            uint16_t vbucket);
+                                            uint16_t vbucket,
+                                            ADD_RESPONSE response);
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
                                        const void* cookie, time_t when);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
@@ -91,7 +94,8 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
                                             uint64_t cas,
                                             const void *data,
                                             size_t ndata,
-                                            uint16_t vbucket);
+                                            uint16_t vbucket,
+                                            ADD_RESPONSE response);
 
 static TAP_ITERATOR default_get_tap_iterator(ENGINE_HANDLE* handle,
                                              const void* cookie,
@@ -368,7 +372,8 @@ static ENGINE_ERROR_CODE default_get(ENGINE_HANDLE* handle,
                                      item** item,
                                      const void* key,
                                      const int nkey,
-                                     uint16_t vbucket) {
+                                     uint16_t vbucket,
+                                     ADD_RESPONSE response) {
    struct default_engine *engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
 
@@ -472,7 +477,8 @@ static ENGINE_ERROR_CODE default_store(ENGINE_HANDLE* handle,
                                        item* item,
                                        uint64_t *cas,
                                        ENGINE_STORE_OPERATION operation,
-                                       uint16_t vbucket) {
+                                       uint16_t vbucket,
+                                       ADD_RESPONSE response) {
     struct default_engine *engine = get_handle(handle);
     VBUCKET_GUARD(engine, vbucket);
     return store_item(engine, get_real_item(item), cas, operation,
@@ -490,7 +496,8 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
                                             const rel_time_t exptime,
                                             uint64_t *cas,
                                             uint64_t *result,
-                                            uint16_t vbucket) {
+                                            uint16_t vbucket,
+                                            ADD_RESPONSE response) {
    struct default_engine *engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
 
@@ -789,7 +796,8 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
                                             uint64_t cas,
                                             const void *data,
                                             size_t ndata,
-                                            uint16_t vbucket) {
+                                            uint16_t vbucket,
+                                            ADD_RESPONSE response) {
     struct default_engine* engine = get_handle(handle);
     vbucket_state_t state;
     item *it;
@@ -822,7 +830,7 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
         memcpy(item_get_data(it), data, ndata);
         engine->server.cookie->store_engine_specific(cookie, NULL);
         item_set_cas(handle, cookie, it, cas);
-        ret = default_store(handle, cookie, it, &cas, OPERATION_SET, vbucket);
+        ret = default_store(handle, cookie, it, &cas, OPERATION_SET, vbucket, response);
         if (ret == ENGINE_EWOULDBLOCK) {
             engine->server.cookie->store_engine_specific(cookie, it);
         } else {

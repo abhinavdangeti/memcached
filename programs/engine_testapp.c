@@ -144,7 +144,8 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
                                   item** item,
                                   const void* key,
                                   const int nkey,
-                                  uint16_t vbucket) {
+                                  uint16_t vbucket,
+                                  ADD_RESPONSE response) {
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -156,7 +157,8 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
     pthread_mutex_lock(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->get((ENGINE_HANDLE*)me->the_engine, c, item,
-                                      key, nkey, vbucket)) == ENGINE_EWOULDBLOCK &&
+                                      key, nkey, vbucket,
+                                      response)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
@@ -210,7 +212,8 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
                                     item* item,
                                     uint64_t *cas,
                                     ENGINE_STORE_OPERATION operation,
-                                    uint16_t vbucket) {
+                                    uint16_t vbucket,
+                                    ADD_RESPONSE response) {
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -222,7 +225,8 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
     pthread_mutex_lock(&c->mutex);
     while (ret == ENGINE_SUCCESS &&
            (ret = me->the_engine->store((ENGINE_HANDLE*)me->the_engine, c, item, cas,
-                                        operation, vbucket)) == ENGINE_EWOULDBLOCK &&
+                                        operation, vbucket,
+                                        response)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
@@ -249,7 +253,8 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
                                          const rel_time_t exptime,
                                          uint64_t *cas,
                                          uint64_t *result,
-                                         uint16_t vbucket) {
+                                         uint16_t vbucket,
+                                         ADD_RESPONSE response) {
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
     if (c == NULL) {
@@ -263,7 +268,8 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
            (ret = me->the_engine->arithmetic((ENGINE_HANDLE*)me->the_engine, c, key,
                                              nkey, increment, create,
                                              delta, initial, exptime,
-                                             cas, result, vbucket)) == ENGINE_EWOULDBLOCK &&
+                                             cas, result, vbucket,
+                                             response)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;
@@ -413,7 +419,8 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
                                         uint64_t cas,
                                         const void *data,
                                         size_t ndata,
-                                         uint16_t vbucket) {
+                                        uint16_t vbucket,
+                                        ADD_RESPONSE response) {
 
     struct mock_engine *me = get_handle(handle);
     struct mock_connstruct *c = (void*)cookie;
@@ -428,7 +435,8 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
            (ret = me->the_engine->tap_notify((ENGINE_HANDLE*)me->the_engine, c,
                                              engine_specific, nengine, ttl, tap_flags,
                                              tap_event, tap_seqno, key, nkey, flags,
-                                             exptime, cas, data, ndata, vbucket)) == ENGINE_EWOULDBLOCK &&
+                                             exptime, cas, data, ndata, vbucket,
+                                             response)) == ENGINE_EWOULDBLOCK &&
            c->handle_ewouldblock)
     {
         ++c->nblocks;

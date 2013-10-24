@@ -42,7 +42,8 @@ extern "C" {
                                  item** item,
                                  const void* key,
                                  const int nkey,
-                                 uint16_t vbucket);
+                                 uint16_t vbucket,
+                                 ADD_RESPONSE response);
     static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
                                        const void *cookie,
                                        const char *stat_key,
@@ -54,7 +55,8 @@ extern "C" {
                                    item* item,
                                    uint64_t *cas,
                                    ENGINE_STORE_OPERATION operation,
-                                   uint16_t vbucket);
+                                   uint16_t vbucket,
+                                   ADD_RESPONSE response);
     static ENGINE_ERROR_CODE arithmetic(ENGINE_HANDLE* handle,
                                         const void* cookie,
                                         const void* key,
@@ -66,7 +68,8 @@ extern "C" {
                                         const rel_time_t exptime,
                                         uint64_t *cas,
                                         uint64_t *result,
-                                        uint16_t vbucket);
+                                        uint16_t vbucket,
+                                        ADD_RESPONSE response);
     static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
                                    const void* cookie, time_t when);
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
@@ -89,7 +92,8 @@ extern "C" {
                                         uint64_t cas,
                                         const void *data,
                                         size_t ndata,
-                                        uint16_t vbucket);
+                                        uint16_t vbucket,
+                                        ADD_RESPONSE response);
 
     static tap_event_t tap_walker(ENGINE_HANDLE* handle,
                                   const void *cookie, item **itm,
@@ -655,7 +659,8 @@ public:
                           item** itm,
                           const void* key,
                           const int nkey,
-                          uint16_t vbucket)
+                          uint16_t vbucket,
+                          ADD_RESPONSE response)
     {
         if ((random() % 5) == 1) {
             return dispatchNotification(cookie);
@@ -690,7 +695,8 @@ public:
                             item* itm,
                             uint64_t *cas,
                             ENGINE_STORE_OPERATION operation,
-                            uint16_t vbucket)
+                            uint16_t vbucket,
+                            ADD_RESPONSE response)
     {
         if ((random() % 10) == 1) {
             return dispatchNotification(cookie);
@@ -739,7 +745,8 @@ public:
                                 uint64_t cas,
                                 const void *data,
                                 size_t ndata,
-                                uint16_t vbucket)
+                                uint16_t vbucket,
+                                ADD_RESPONSE response)
     {
         abort();
         return ENGINE_ENOTSUP;
@@ -919,9 +926,10 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
                              item** item,
                              const void* key,
                              const int nkey,
-                             uint16_t vbucket)
+                             uint16_t vbucket,
+                             ADD_RESPONSE response)
 {
-    return getHandle(handle).get(cookie, item, key, nkey, vbucket);
+    return getHandle(handle).get(cookie, item, key, nkey, vbucket, response);
 }
 
 static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
@@ -943,9 +951,10 @@ static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
                                item* it,
                                uint64_t *cas,
                                ENGINE_STORE_OPERATION operation,
-                               uint16_t vbucket)
+                               uint16_t vbucket,
+                               ADD_RESPONSE response)
 {
-    return getHandle(handle).store(cookie, it, cas, operation, vbucket);
+    return getHandle(handle).store(cookie, it, cas, operation, vbucket, response);
 }
 
 static ENGINE_ERROR_CODE flush(ENGINE_HANDLE* handle,
@@ -969,12 +978,13 @@ static ENGINE_ERROR_CODE tap_notify(ENGINE_HANDLE* handle, const void *cookie,
                                     const void *key, size_t nkey,
                                     uint32_t flags, uint32_t exptime,
                                     uint64_t cas, const void *data,
-                                    size_t ndata, uint16_t vbucket)
+                                    size_t ndata, uint16_t vbucket,
+                                    ADD_RESPONSE response)
 {
     return getHandle(handle).tapNotify(cookie, engine_specific, nengine,
                                         ttl, tap_flags, tap_event, tap_seqno,
                                         key, nkey, flags, exptime, cas,
-                                        data, ndata, vbucket);
+                                        data, ndata, vbucket, response);
 }
 
 static tap_event_t tap_walker(ENGINE_HANDLE* handle,

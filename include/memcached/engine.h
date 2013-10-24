@@ -288,7 +288,8 @@ extern "C" {
                                  item** item,
                                  const void* key,
                                  const int nkey,
-                                 uint16_t vbucket);
+                                 uint16_t vbucket,
+                                 ADD_RESPONSE response);
 
         /**
          * Store an item.
@@ -307,7 +308,8 @@ extern "C" {
                                    item* item,
                                    uint64_t *cas,
                                    ENGINE_STORE_OPERATION operation,
-                                   uint16_t vbucket);
+                                   uint16_t vbucket,
+                                   ADD_RESPONSE response);
 
         /**
          * Perform an increment or decrement operation on an item.
@@ -338,7 +340,8 @@ extern "C" {
                                         const rel_time_t exptime,
                                         uint64_t *cas,
                                         uint64_t *result,
-                                        uint16_t vbucket);
+                                        uint16_t vbucket,
+                                        ADD_RESPONSE response);
 
         /**
          * Flush the cache.
@@ -475,7 +478,8 @@ extern "C" {
                                         uint64_t cas,
                                         const void *data,
                                         size_t ndata,
-                                        uint16_t vbucket);
+                                        uint16_t vbucket,
+                                        ADD_RESPONSE response);
 
         /**
          * Get (or create) a Tap iterator for this connection.

@@ -10,6 +10,12 @@
 
 struct test_harness test_harness;
 
+static bool response_handler(const void *key, uint16_t keylen,
+                             const void *ext, uint8_t extlen,
+                             const void *body, uint32_t bodylen,
+                             uint8_t datatype, uint16_t status,
+                             uint64_t cas, const void *cookie);
+
 /*
  * Make sure that get_info returns something and that repeated calls to it
  * return the same something.
@@ -73,7 +79,8 @@ static enum test_result set_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     for (int ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
-        assert(h1->store(h, NULL, it, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+        assert(h1->store(h, NULL, it, &cas, OPERATION_SET,0,
+                    response_handler) == ENGINE_SUCCESS);
         assert(cas != prev_cas);
     }
     h1->release(h, NULL, it);
@@ -91,7 +98,8 @@ static enum test_result add_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas;
 
     for (int ii = 0; ii < 10; ++ii) {
-        ENGINE_ERROR_CODE ret = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
+        ENGINE_ERROR_CODE ret = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0,
+                                          response_handler);
         if (ii == 0) {
             assert(ret == ENGINE_SUCCESS);
             assert(cas != 0);
@@ -122,12 +130,14 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     for (int ii = 0; ii < 10; ++ii) {
         prev_cas = cas;
         *(int*)(item_info.value[0].iov_base) = ii;
-        assert(h1->store(h, NULL, it, &cas, OPERATION_REPLACE,0) == ENGINE_SUCCESS);
+        assert(h1->store(h, NULL, it, &cas, OPERATION_REPLACE,0,
+                         response_handler) == ENGINE_SUCCESS);
         assert(cas != prev_cas);
     }
     h1->release(h, NULL, it);
 
-    assert(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_SUCCESS);
+    assert(h1->get(h, NULL, &it, key, strlen(key), 0,
+                   response_handler) == ENGINE_SUCCESS);
     assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     assert(item_info.value[0].iov_len == sizeof(int));
     assert(*(int*)(item_info.value[0].iov_base) == 9);
@@ -149,17 +159,20 @@ static enum test_result append_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item_info item_info = { .nvalue = 1 };
     assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, "HELLO", 5);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0,
+                     response_handler) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
     assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 6, 1, 0) == ENGINE_SUCCESS);
     item_info.nvalue = 1;
     assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, " WORLD", 6);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_APPEND, 0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, it, &cas, OPERATION_APPEND, 0,
+                     response_handler) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
 
-    assert(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_SUCCESS);
+    assert(h1->get(h, NULL, &it, key, strlen(key), 0,
+                   response_handler) == ENGINE_SUCCESS);
     assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     assert(item_info.value[0].iov_len == 11);
     assert(memcmp(item_info.value[0].iov_base, "HELLO WORLD", 11) == 0);
@@ -181,17 +194,20 @@ static enum test_result prepend_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item_info item_info = { .nvalue = 1 };
     assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, "HELLO", 5);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0,
+                     response_handler) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
     assert(h1->allocate(h, NULL, &it, key,
                         strlen(key), 6, 1, 0) == ENGINE_SUCCESS);
     item_info.nvalue = 1;
     assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     memcpy(item_info.value[0].iov_base, " WORLD", 6);
-    assert(h1->store(h, NULL, it, &cas, OPERATION_PREPEND, 0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, it, &cas, OPERATION_PREPEND, 0,
+                     response_handler) == ENGINE_SUCCESS);
     h1->release(h, NULL, it);
 
-    assert(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_SUCCESS);
+    assert(h1->get(h, NULL, &it, key, strlen(key), 0,
+                   response_handler) == ENGINE_SUCCESS);
     assert(h1->get_item_info(h, NULL, it, &item_info) == true);
     assert(item_info.value[0].iov_len == 11);
     assert(memcmp(item_info.value[0].iov_base, " WORLDHELLO", 11) == 0);
@@ -209,7 +225,8 @@ static enum test_result store_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "bkey";
     uint64_t cas = 0;
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,1,1) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
+                     response_handler) == ENGINE_SUCCESS);
     assert(cas != 0);
     h1->release(h,NULL,test_item);
     return SUCCESS;
@@ -225,8 +242,10 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "get_test_key";
     uint64_t cas = 0;
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, 0) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
-    assert(h1->get(h,NULL,&test_item_get,key,strlen(key),0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
+                     response_handler) == ENGINE_SUCCESS);
+    assert(h1->get(h,NULL,&test_item_get,key,strlen(key),0,
+                   response_handler) == ENGINE_SUCCESS);
     h1->release(h,NULL,test_item);
     h1->release(h,NULL,test_item_get);
     return SUCCESS;
@@ -238,9 +257,11 @@ static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "get_test_key";
     uint64_t cas = 0;
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 10) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0,
+                     response_handler) == ENGINE_SUCCESS);
     test_harness.time_travel(11);
-    assert(h1->get(h,NULL,&test_item_get,key,strlen(key),0) == ENGINE_KEY_ENOENT);
+    assert(h1->get(h,NULL,&test_item_get,key,strlen(key),0,
+                   response_handler) == ENGINE_KEY_ENOENT);
     h1->release(h,NULL,test_item);
     return SUCCESS;
 }
@@ -255,7 +276,8 @@ static enum test_result release_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "release_test_key";
     uint64_t cas = 0;
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
+                     response_handler) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
@@ -269,10 +291,12 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     void *key = "remove_test_key";
     uint64_t cas = 0;
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, 0) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
+                     response_handler) == ENGINE_SUCCESS);
     assert(h1->remove(h, NULL, key, strlen(key), &cas, 0) == ENGINE_SUCCESS);
     item *check_item = test_item;
-    assert(h1->get(h, NULL, &check_item, key, strlen(key), 0) ==  ENGINE_KEY_ENOENT);
+    assert(h1->get(h, NULL, &check_item, key, strlen(key), 0,
+                   response_handler) ==  ENGINE_KEY_ENOENT);
     assert(check_item == NULL);
     h1->release(h, NULL, test_item);
     return SUCCESS;
@@ -289,10 +313,10 @@ static enum test_result incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t res = 0;
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0) == ENGINE_SUCCESS);
     assert(h1->arithmetic(h, NULL, key, strlen(key), true, true, 0, 1,
-           0, &cas, &res, 0 ) == ENGINE_SUCCESS);
+           0, &cas, &res, 0, response_handler ) == ENGINE_SUCCESS);
     assert(res == 1);
     assert(h1->arithmetic(h, NULL, key, strlen(key), true, false, 1, 0,
-           0, &cas, &res, 0 ) == ENGINE_SUCCESS);
+           0, &cas, &res, 0, response_handler ) == ENGINE_SUCCESS);
     assert(res == 2);
     h1->release(h, NULL, test_item);
     return SUCCESS;
@@ -307,7 +331,7 @@ static void *incr_test_main(void *arg) {
 
     for (int ii = 0; ii < 1000; ++ii) {
         assert(h1->arithmetic(h, NULL, key, strlen(key), false, false, 1, 0,
-                              0, &cas, &res, 0 ) == ENGINE_SUCCESS);
+                              0, &cas, &res, 0, response_handler ) == ENGINE_SUCCESS);
 
     }
 
@@ -338,7 +362,7 @@ static enum test_result mt_incr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     assert(h1->allocate(h, NULL, &test_item, key,
                         strlen(key), 1, 0, 0) == ENGINE_SUCCESS);
     assert(h1->arithmetic(h, NULL, key, strlen(key), true, true, 0, 1,
-                          0, &cas, &res, 0 ) == ENGINE_SUCCESS);
+                          0, &cas, &res, 0, response_handler ) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
 
     for (int ii = 0; ii < max_threads; ++ii) {
@@ -365,10 +389,10 @@ static enum test_result decr_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t res = 0;
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, 0) == ENGINE_SUCCESS);
     assert(h1->arithmetic(h, NULL, key, strlen(key), false, true, 0, 1,
-           0, &cas, &res, 0 ) == ENGINE_SUCCESS);
+           0, &cas, &res, 0, response_handler ) == ENGINE_SUCCESS);
     assert(res == 1);
     assert(h1->arithmetic(h, NULL, key, strlen(key), false, false, 1, 0,
-           0, &cas, &res, 0 ) == ENGINE_SUCCESS);
+           0, &cas, &res, 0, response_handler ) == ENGINE_SUCCESS);
     assert(res == 0);
     h1->release(h, NULL, test_item);
     return SUCCESS;
@@ -384,10 +408,12 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0;
     test_harness.time_travel(3);
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1, 0, 0) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
+                     response_handler) == ENGINE_SUCCESS);
     assert(h1->flush(h, NULL, 0) == ENGINE_SUCCESS);
     item *check_item = test_item;
-    assert(h1->get(h, NULL, &check_item, key, strlen(key), 0) ==  ENGINE_KEY_ENOENT);
+    assert(h1->get(h, NULL, &check_item, key, strlen(key), 0,
+                   response_handler) ==  ENGINE_KEY_ENOENT);
     assert(check_item == NULL);
     h1->release(h, NULL, test_item);
     return SUCCESS;
@@ -404,7 +430,8 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     const rel_time_t exp = 1;
     item_info ii = { .nvalue = 1 };
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, exp) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
+                     response_handler) == ENGINE_SUCCESS);
     /* Had this been actual code, there'd be a connection here */
     assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
     assert(ii.cas == cas);
@@ -424,7 +451,8 @@ static enum test_result item_set_cas_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     const rel_time_t exp = 1;
     item_info ii = { .nvalue = 1 };
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, exp) == ENGINE_SUCCESS);
-    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+    assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
+                     response_handler) == ENGINE_SUCCESS);
     uint64_t newcas = cas + 1;
     h1->item_set_cas(h, NULL, test_item, newcas);
     assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
@@ -452,20 +480,22 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     assert(h1->allocate(h, NULL, &test_item,
                         hot_key, strlen(hot_key), 4096, 0, 0) == ENGINE_SUCCESS);
     assert(h1->store(h, NULL, test_item,
-                     &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+                     &cas, OPERATION_SET,0, response_handler) == ENGINE_SUCCESS);
     h1->release(h, NULL, test_item);
 
     int ii;
     for (ii = 0; ii < 250; ++ii) {
         assert(h1->get(h, NULL, &test_item,
-                       hot_key, strlen(hot_key), 0) ==  ENGINE_SUCCESS);
+                       hot_key, strlen(hot_key), 0,
+                       response_handler) ==  ENGINE_SUCCESS);
         h1->release(h, NULL, test_item);
         char key[1024];
         size_t keylen = snprintf(key, sizeof(key), "lru_test_key_%08d", ii);
         assert(h1->allocate(h, NULL, &test_item,
                             key, keylen, 4096, 0, 0) == ENGINE_SUCCESS);
         assert(h1->store(h, NULL, test_item,
-                         &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
+                         &cas, OPERATION_SET,0,
+                         response_handler) == ENGINE_SUCCESS);
         h1->release(h, NULL, test_item);
         assert(h1->get_stats(h, NULL, NULL, 0,
                              eviction_stats_handler) == ENGINE_SUCCESS);
@@ -480,10 +510,12 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         size_t keylen = snprintf(key, sizeof(key), "lru_test_key_%08d", jj);
         if (jj == 0 || jj == 1) {
             assert(h1->get(h, NULL, &test_item,
-                           key, keylen, 0) == ENGINE_KEY_ENOENT);
+                           key, keylen, 0,
+                           response_handler) == ENGINE_KEY_ENOENT);
         } else {
             assert(h1->get(h, NULL, &test_item,
-                           key, keylen, 0) == ENGINE_SUCCESS);
+                           key, keylen, 0,
+                           response_handler) == ENGINE_SUCCESS);
             assert(test_item != NULL);
             h1->release(h, NULL, test_item);
         }
@@ -603,7 +635,8 @@ static enum test_result touch_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // The item should have expired now...
     item *item = NULL;
-    assert(h1->get(h, NULL, &item, key, keylen, 0) == ENGINE_KEY_ENOENT);
+    assert(h1->get(h, NULL, &item, key, keylen, 0,
+                   response_handler) == ENGINE_KEY_ENOENT);
 
     // Verify that it doesn't accept bogus packets. extlen is mandatory
     r.touch.message.header.request.extlen = 0;
@@ -685,7 +718,8 @@ static enum test_result gat_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // The item should have expired now...
     item *item = NULL;
-    assert(h1->get(h, NULL, &item, key, keylen, 0) == ENGINE_KEY_ENOENT);
+    assert(h1->get(h, NULL, &item, key, keylen, 0,
+                   response_handler) == ENGINE_KEY_ENOENT);
 
     // Verify that it doesn't accept bogus packets. extlen is mandatory
     r.gat.message.header.request.extlen = 0;
@@ -764,7 +798,8 @@ static enum test_result gatq_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // The item should have expired now...
     item *item = NULL;
-    assert(h1->get(h, NULL, &item, key, keylen, 0) == ENGINE_KEY_ENOENT);
+    assert(h1->get(h, NULL, &item, key, keylen, 0,
+                   response_handler) == ENGINE_KEY_ENOENT);
 
     // Verify that it doesn't accept bogus packets. extlen is mandatory
     r.gat.message.header.request.extlen = 0;

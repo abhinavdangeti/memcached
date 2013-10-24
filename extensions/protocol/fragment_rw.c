@@ -51,7 +51,8 @@ static ENGINE_ERROR_CODE create_object(ENGINE_HANDLE_V1 *v1,
                                        const void *data,
                                        uint64_t offset,
                                        uint64_t len,
-                                       uint64_t *cas)
+                                       uint64_t *cas,
+                                       ADD_RESPONSE response)
 {
     ENGINE_ERROR_CODE r;
     item *item = NULL;
@@ -73,7 +74,7 @@ static ENGINE_ERROR_CODE create_object(ENGINE_HANDLE_V1 *v1,
     memcpy(dest + offset, data, len);
 
     v1->item_set_cas(v, cookie, item, org->cas);
-    r = v1->store(v, cookie, item, cas, OPERATION_CAS, vbucket);
+    r = v1->store(v, cookie, item, cas, OPERATION_CAS, vbucket, response);
     v1->release(v, cookie, item);
     return r;
 }
@@ -101,7 +102,7 @@ static ENGINE_ERROR_CODE handle_fragment_rw(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR
     item *item = NULL;
     uint8_t *data = key + nkey;
 
-    ENGINE_ERROR_CODE r = v1->get(handle, cookie, &item, key, nkey, vbucket);
+    ENGINE_ERROR_CODE r = v1->get(handle, cookie, &item, key, nkey, vbucket, response);
     if (r == ENGINE_SUCCESS) {
         item_info item_info = { .nvalue = 1 };
 
@@ -125,7 +126,7 @@ static ENGINE_ERROR_CODE handle_fragment_rw(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR
                 }
             } else {
                 r = create_object(v1, handle, cookie, &item_info,
-                                  vbucket, data, offset, len, &cas);
+                                  vbucket, data, offset, len, &cas, response);
                 if (r == ENGINE_SUCCESS) {
                     if (!response(NULL, 0, NULL, 0, NULL, 0,
                                   PROTOCOL_BINARY_RAW_BYTES,
