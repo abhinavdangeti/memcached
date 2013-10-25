@@ -257,7 +257,8 @@ extern "C" {
                                     const void* key,
                                     const size_t nkey,
                                     uint64_t* cas,
-                                    uint16_t vbucket);
+                                    uint16_t vbucket,
+                                    ADD_RESPONSE response);
 
         /**
          * Indicate that a caller who received an item no longer needs

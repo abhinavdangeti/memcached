@@ -293,7 +293,8 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     assert(h1->allocate(h, NULL, &test_item, key, strlen(key), 1,0, 0) == ENGINE_SUCCESS);
     assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0,
                      response_handler) == ENGINE_SUCCESS);
-    assert(h1->remove(h, NULL, key, strlen(key), &cas, 0) == ENGINE_SUCCESS);
+    assert(h1->remove(h, NULL, key, strlen(key), &cas, 0,
+                      response_handler) == ENGINE_SUCCESS);
     item *check_item = test_item;
     assert(h1->get(h, NULL, &check_item, key, strlen(key), 0,
                    response_handler) ==  ENGINE_KEY_ENOENT);

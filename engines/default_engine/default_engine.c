@@ -33,7 +33,8 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              const void* key,
                                              const size_t nkey,
                                              uint64_t* cas,
-                                             uint16_t vbucket);
+                                             uint16_t vbucket,
+                                             ADD_RESPONSE response);
 
 static void default_item_release(ENGINE_HANDLE* handle, const void *cookie,
                                  item* item);
@@ -341,7 +342,8 @@ static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              const void* key,
                                              const size_t nkey,
                                              uint64_t* cas,
-                                             uint16_t vbucket)
+                                             uint16_t vbucket,
+                                             ADD_RESPONSE response)
 {
    struct default_engine* engine = get_handle(handle);
    VBUCKET_GUARD(engine, vbucket);
@@ -812,7 +814,7 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
         return default_flush(handle, cookie, 0);
 
     case TAP_DELETION:
-        return default_item_delete(handle, cookie, key, nkey, &cas, vbucket);
+        return default_item_delete(handle, cookie, key, nkey, &cas, vbucket, response);
 
     case TAP_MUTATION:
         it = engine->server.cookie->get_engine_specific(cookie);

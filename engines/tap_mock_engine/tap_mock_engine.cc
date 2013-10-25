@@ -33,7 +33,8 @@ extern "C" {
                                          const void* key,
                                          const size_t nkey,
                                          uint64_t* cas,
-                                         uint16_t vbucket);
+                                         uint16_t vbucket,
+                                         ADD_RESPONSE add_response);
 
     static void item_release(ENGINE_HANDLE* handle, const void *cookie,
                              item* it);
@@ -622,7 +623,8 @@ public:
                                  const void* key,
                                  const size_t nkey,
                                  uint64_t cas,
-                                 uint16_t vbucket)
+                                 uint16_t vbucket,
+                                 ADD_RESPONSE response)
     {
         // if ((random() % 10) == 1) {
         //     return dispatchNotification(cookie);
@@ -911,9 +913,11 @@ static ENGINE_ERROR_CODE item_delete(ENGINE_HANDLE* handle,
                                      const void* key,
                                      const size_t nkey,
                                      uint64_t* cas,
-                                     uint16_t vbucket)
+                                     uint16_t vbucket,
+                                     ADD_RESPONSE response)
 {
-    return getHandle(handle).itemDelete(cookie, key, nkey, *cas, vbucket);
+    return getHandle(handle).itemDelete(cookie, key, nkey, *cas, vbucket,
+                                        response);
 }
 
 static void item_release(ENGINE_HANDLE* handle, const void *cookie, item* it)

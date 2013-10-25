@@ -1317,7 +1317,7 @@ static void complete_update_ascii(conn *c) {
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->store(settings.engine.v0, c, it, &c->cas,
-                                        c->store_op, 0);
+                                        c->store_op, 0, NULL);
     }
 
 #ifdef ENABLE_DTRACE
@@ -1746,7 +1746,8 @@ static void complete_incr_bin(conn *c) {
                                              delta, initial, expiration,
                                              &c->cas,
                                              &rsp->message.body.value,
-                                             c->binary_header.request.vbucket);
+                                             c->binary_header.request.vbucket,
+                                             NULL);
     }
 
     switch (ret) {
@@ -1821,7 +1822,8 @@ static void complete_update_bin(conn *c) {
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->store(settings.engine.v0, c,
                                         it, &c->cas, c->store_op,
-                                        c->binary_header.request.vbucket);
+                                        c->binary_header.request.vbucket,
+                                        NULL);
     }
 
 #ifdef ENABLE_DTRACE
@@ -1934,7 +1936,8 @@ static void process_bin_get(conn *c) {
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->get(settings.engine.v0, c, &it, key, nkey,
-                                      c->binary_header.request.vbucket);
+                                      c->binary_header.request.vbucket,
+                                      NULL);
     }
 
     uint16_t keylen;
@@ -3055,7 +3058,8 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
                                                  flags, exptime,
                                                  memcached_ntohll(tap->message.header.request.cas),
                                                  data, ndata,
-                                                 c->binary_header.request.vbucket);
+                                                 c->binary_header.request.vbucket,
+                                                 NULL);
         }
     }
 
@@ -3089,7 +3093,7 @@ static void process_bin_tap_ack(conn *c) {
         ret = settings.engine.v1->tap_notify(settings.engine.v0, c, NULL, 0, 0, status,
                                              TAP_ACK, seqno, key,
                                              c->binary_header.request.keylen, 0, 0,
-                                             0, NULL, 0, 0);
+                                             0, NULL, 0, 0, NULL);
     }
 
     if (ret == ENGINE_DISCONNECT) {
@@ -3534,7 +3538,7 @@ static void process_bin_update(conn *c) {
             /* @todo fix this for the ASYNC interface! */
             uint64_t cas = 0;
             settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                       &cas, c->binary_header.request.vbucket);
+                                       &cas, c->binary_header.request.vbucket, NULL);
         }
 
         /* swallow the data line */
@@ -3672,7 +3676,8 @@ static void process_bin_delete(conn *c) {
             stats_prefix_record_delete(key, nkey);
         }
         ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                         &cas, c->binary_header.request.vbucket);
+                                         &cas, c->binary_header.request.vbucket,
+                                         NULL);
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
@@ -4454,7 +4459,7 @@ static inline char* process_get_command(conn *c, mc_extension_token_t *tokens, s
             c->aiostat = ENGINE_SUCCESS;
 
             if (ret == ENGINE_SUCCESS) {
-                ret = settings.engine.v1->get(settings.engine.v0, c, &it, key, nkey, 0);
+                ret = settings.engine.v1->get(settings.engine.v0, c, &it, key, nkey, 0, NULL);
             }
 
             switch (ret) {
@@ -4660,7 +4665,7 @@ static void process_update_command(conn *c, mc_extension_token_t *tokens, const 
          * Unacceptable for SET. Anywhere else too? */
         if (store_op == OPERATION_SET) {
             uint64_t cas = 0;
-            settings.engine.v1->remove(settings.engine.v0, c, key, nkey, &cas, 0);
+            settings.engine.v1->remove(settings.engine.v0, c, key, nkey, &cas, 0, NULL);
         }
     }
 }
@@ -4695,7 +4700,7 @@ static char* process_arithmetic_command(conn *c, mc_extension_token_t *tokens, c
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->arithmetic(settings.engine.v0, c, key, nkey,
                                              incr, false, delta, 0, 0, &cas,
-                                             &result, 0);
+                                             &result, 0, NULL);
     }
 
     char temp[INCR_MAX_STORAGE_LEN];
@@ -4778,7 +4783,7 @@ static char *process_delete_command(conn *c, mc_extension_token_t *tokens,
     if (ret == ENGINE_SUCCESS) {
         uint64_t cas = 0;
         ret = settings.engine.v1->remove(settings.engine.v0, c,
-                                         key, nkey, &cas, 0);
+                                         key, nkey, &cas, 0, NULL);
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
@@ -6816,14 +6821,15 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
                                              const rel_time_t exptime,
                                              uint64_t *cas,
                                              uint64_t *result,
-                                             uint16_t vbucket)
+                                             uint16_t vbucket,
+                                             ADD_RESPONSE response)
 {
     ENGINE_HANDLE_V1 *e = (ENGINE_HANDLE_V1*)handle;
 
     item *it = NULL;
 
     ENGINE_ERROR_CODE ret;
-    ret = e->get(handle, cookie, &it, key, nkey, vbucket);
+    ret = e->get(handle, cookie, &it, key, nkey, vbucket, response);
 
     if (ret == ENGINE_SUCCESS) {
         item_info_holder info = { .info = { .nvalue = 1 } };
@@ -6877,7 +6883,7 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
 
         memcpy(i2.info.value[0].iov_base, value, nb);
         e->item_set_cas(handle, cookie, nit, info.info.cas);
-        ret = e->store(handle, cookie, nit, cas, OPERATION_CAS, vbucket);
+        ret = e->store(handle, cookie, nit, cas, OPERATION_CAS, vbucket, response);
         e->release(handle, cookie, it);
         e->release(handle, cookie, nit);
     } else if (ret == ENGINE_KEY_ENOENT && create) {
@@ -6896,14 +6902,14 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
         }
 
         memcpy(info.info.value[0].iov_base, value, nb);
-        ret = e->store(handle, cookie, it, cas, OPERATION_CAS, vbucket);
+        ret = e->store(handle, cookie, it, cas, OPERATION_CAS, vbucket, response);
         e->release(handle, cookie, it);
     }
 
     /* We had a race condition.. just call ourself recursively to retry */
     if (ret == ENGINE_KEY_EEXISTS) {
         return internal_arithmetic(handle, cookie, key, nkey, increment, create, delta,
-                                   initial, exptime, cas, result, vbucket);
+                                   initial, exptime, cas, result, vbucket, response);
     }
 
     return ret;
