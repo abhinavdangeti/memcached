@@ -1323,6 +1323,7 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
 
 static int add_bin_header(conn *c,
                           uint16_t err,
+                          uint8_t datatype,
                           uint8_t hdr_len,
                           uint16_t key_len,
                           uint32_t body_len) {
@@ -1344,7 +1345,7 @@ static int add_bin_header(conn *c,
     header->response.keylen = (uint16_t)htons(key_len);
 
     header->response.extlen = (uint8_t)hdr_len;
-    header->response.datatype = (uint8_t)PROTOCOL_BINARY_RAW_BYTES;
+    header->response.datatype = datatype;
     header->response.status = (uint16_t)htons(err);
 
     header->response.bodylen = htonl(body_len);
@@ -1471,7 +1472,7 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
                                             errtext);
         }
 
-        add_bin_header(c, err, 0, 0, len);
+        add_bin_header(c, err, c->binary_header.request.datatype, 0, 0, len);
         if (errtext) {
             add_iov(c, errtext, len);
         }
@@ -1489,7 +1490,8 @@ static void write_bin_packet(conn *c, protocol_binary_response_status err, int s
 static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int dlen) {
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
-        if (add_bin_header(c, 0, hlen, keylen, dlen) == -1) {
+        if (add_bin_header(c, 0, c->binary_header.request.datatype,  hlen,
+                           keylen, dlen) == -1) {
             conn_set_state(c, conn_closing);
             return;
         }
@@ -1552,6 +1554,7 @@ static void complete_incr_bin(conn *c) {
                                              req->message.body.expiration != 0xffffffff,
                                              delta, initial, expiration,
                                              &c->cas,
+                                             c->binary_header.request.datatype,
                                              &rsp->message.body.value,
                                              c->binary_header.request.vbucket);
     }
@@ -1776,7 +1779,8 @@ static void process_bin_get(conn *c) {
             keylen = nkey;
         }
 
-        if (add_bin_header(c, 0, sizeof(rsp->message.body),
+        if (add_bin_header(c, 0, c->binary_header.request.datatype,
+                           sizeof(rsp->message.body),
                            keylen, bodylen) == -1) {
             conn_set_state(c, conn_closing);
             return;
@@ -1810,6 +1814,7 @@ static void process_bin_get(conn *c) {
             if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
                 char *ofs = c->wbuf + sizeof(protocol_binary_response_header);
                 if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+                                   c->binary_header.request.datatype,
                                    0, nkey, nkey) == -1) {
                     conn_set_state(c, conn_closing);
                     return;
@@ -2228,8 +2233,8 @@ static void process_bin_complete_sasl_auth(conn *c) {
         STATS_NOKEY(c, auth_cmds);
         break;
     case SASL_CONTINUE:
-        if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
-                           outlen) == -1) {
+        if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, c->binary_header.request.datatype,
+                           0, 0, outlen) == -1) {
             conn_set_state(c, conn_closing);
             return;
         }
@@ -2837,6 +2842,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
                                                  key, nkey,
                                                  flags, exptime,
                                                  ntohll(tap->message.header.request.cas),
+                                                 c->binary_header.request.datatype,
                                                  data, ndata,
                                                  c->binary_header.request.vbucket);
         }
@@ -2877,7 +2883,8 @@ static void process_bin_tap_ack(conn *c) {
         ret = settings.engine.v1->tap_notify(settings.engine.v0, c, NULL, 0, 0, status,
                                              TAP_ACK, seqno, key,
                                              c->binary_header.request.keylen, 0, 0,
-                                             0, NULL, 0, 0);
+                                             0, c->binary_header.request.datatype, NULL,
+                                             0, 0);
     }
 
     if (ret == ENGINE_DISCONNECT) {
@@ -4467,7 +4474,8 @@ static void process_bin_update(conn *c) {
                                            &it, key, nkey,
                                            vlen,
                                            req->message.body.flags,
-                                           expiration);
+                                           expiration,
+                                           c->binary_header.request.datatype);
         if (ret == ENGINE_SUCCESS && !settings.engine.v1->get_item_info(settings.engine.v0,
                                                                         c, it,
                                                                         (void*)&info)) {
@@ -4571,7 +4579,8 @@ static void process_bin_append_prepend(conn *c) {
     if (ret == ENGINE_SUCCESS) {
         ret = settings.engine.v1->allocate(settings.engine.v0, c,
                                            &it, key, nkey,
-                                           vlen, 0, 0);
+                                           vlen, 0, 0,
+                                           c->binary_header.request.datatype);
         if (ret == ENGINE_SUCCESS && !settings.engine.v1->get_item_info(settings.engine.v0,
                                                                         c, it,
                                                                         (void*)&info)) {
@@ -6657,6 +6666,7 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
                                              const uint64_t initial,
                                              const rel_time_t exptime,
                                              uint64_t *cas,
+                                             uint8_t datatype,
                                              uint64_t *result,
                                              uint16_t vbucket)
 {
@@ -6710,7 +6720,8 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
         *result = val;
         nit = NULL;
         if (e->allocate(handle, cookie, &nit, key,
-                        nkey, nb, info.info.flags, info.info.exptime) != ENGINE_SUCCESS) {
+                        nkey, nb, info.info.flags, info.info.exptime,
+                        datatype) != ENGINE_SUCCESS) {
             e->release(handle, cookie, it);
             return ENGINE_ENOMEM;
         }
@@ -6735,7 +6746,8 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
         info.info.nvalue = 1;
 
         *result = initial;
-        if (e->allocate(handle, cookie, &it, key, nkey, nb, 0, exptime) != ENGINE_SUCCESS) {
+        if (e->allocate(handle, cookie, &it, key, nkey, nb, 0, exptime,
+                        datatype) != ENGINE_SUCCESS) {
             e->release(handle, cookie, it);
             return ENGINE_ENOMEM;
         }
@@ -6753,7 +6765,7 @@ static ENGINE_ERROR_CODE internal_arithmetic(ENGINE_HANDLE* handle,
     /* We had a race condition.. just call ourself recursively to retry */
     if (ret == ENGINE_KEY_EEXISTS) {
         return internal_arithmetic(handle, cookie, key, nkey, increment, create, delta,
-                                   initial, exptime, cas, result, vbucket);
+                                   initial, exptime, cas, datatype, result, vbucket);
     }
 
     return ret;

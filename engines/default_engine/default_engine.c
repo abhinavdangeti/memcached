@@ -27,7 +27,8 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
                                                const size_t nkey,
                                                const size_t nbytes,
                                                const int flags,
-                                               const rel_time_t exptime);
+                                               const rel_time_t exptime,
+                                               uint8_t datatype);
 static ENGINE_ERROR_CODE default_item_delete(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              const void* key,
@@ -65,6 +66,7 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
                                             const uint64_t initial,
                                             const rel_time_t exptime,
                                             uint64_t *cas,
+                                            uint8_t datatype,
                                             uint64_t *result,
                                             uint16_t vbucket);
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
@@ -89,6 +91,7 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
                                             uint32_t flags,
                                             uint32_t exptime,
                                             uint64_t cas,
+                                            uint8_t datatype,
                                             const void *data,
                                             size_t ndata,
                                             uint16_t vbucket);
@@ -391,7 +394,8 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
                                                const size_t nkey,
                                                const size_t nbytes,
                                                const int flags,
-                                               const rel_time_t exptime) {
+                                               const rel_time_t exptime,
+                                               uint8_t datatype) {
    hash_item *it;
    unsigned int id;
    struct default_engine* engine = get_handle(handle);
@@ -405,7 +409,7 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
    }
 
    it = item_alloc(engine, key, nkey, flags, engine->server.core->realtime(exptime),
-                   nbytes, cookie);
+                   nbytes, cookie, datatype);
 
    if (it != NULL) {
       *item = it;
@@ -575,6 +579,7 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
                                             const uint64_t initial,
                                             const rel_time_t exptime,
                                             uint64_t *cas,
+                                            uint8_t datatype,
                                             uint64_t *result,
                                             uint16_t vbucket) {
    struct default_engine *engine = get_handle(handle);
@@ -582,7 +587,7 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
 
    return arithmetic(engine, cookie, key, nkey, increment,
                      create, delta, initial, engine->server.core->realtime(exptime), cas,
-                     result);
+                     datatype, result);
 }
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
@@ -891,6 +896,7 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
     item_info->key = item_get_key(it);
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;
+    item_info->datatype = it->datatype;
     return true;
 }
 
@@ -907,6 +913,7 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
                                             uint32_t flags,
                                             uint32_t exptime,
                                             uint64_t cas,
+                                            uint8_t datatype,
                                             const void *data,
                                             size_t ndata,
                                             uint16_t vbucket) {
@@ -929,7 +936,8 @@ static ENGINE_ERROR_CODE default_tap_notify(ENGINE_HANDLE* handle,
     case TAP_MUTATION:
         it = engine->server.cookie->get_engine_specific(cookie);
         if (it == NULL) {
-            ret = default_item_allocate(handle, cookie, &it, key, nkey, ndata, flags, exptime);
+            ret = default_item_allocate(handle, cookie, &it, key, nkey, ndata, flags,
+                                        exptime, datatype);
             switch (ret) {
             case ENGINE_SUCCESS:
                 break;

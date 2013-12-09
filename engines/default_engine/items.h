@@ -14,6 +14,7 @@ typedef struct _hash_item {
                          * startup) */
     uint32_t nbytes; /**< The total size of the data (in bytes) */
     uint32_t flags; /**< Flags associated with the item (in network byte order)*/
+    uint8_t datatype;
     uint16_t nkey; /**< The total length of the key (in bytes) */
     uint16_t iflag; /**< Intermal flags. lower 8 bit is reserved for the core
                      * server, the upper 8 bits is reserved for engine
@@ -51,7 +52,8 @@ struct items {
  */
 hash_item *item_alloc(struct default_engine *engine,
                       const void *key, size_t nkey, int flags,
-                      rel_time_t exptime, int nbytes, const void *cookie);
+                      rel_time_t exptime, int nbytes, const void *cookie,
+                      uint8_t datatype);
 
 /**
  * Get an item from the cache
@@ -167,6 +169,7 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
                              const uint64_t initial,
                              const rel_time_t exptime,
                              uint64_t *cas,
+                             uint8_t datatype,
                              uint64_t *result);
 
 
