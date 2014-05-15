@@ -516,6 +516,13 @@ static bool bucket_validate_session_cas(const uint64_t cas) {
 }
 
 /**
+ * Decrement the session_cas's counter held in memcached core.
+ */
+static void bucket_decrement_session_ctr(void) {
+    bucket_engine.upstream_server->cookie->decrement_session_ctr();
+}
+
+/**
  * We don't allow the underlying engines to register or remove extensions
  */
 static bool bucket_register_extension(extension_type_t type,
@@ -1193,6 +1200,18 @@ static void handle_disconnect(const void *cookie,
         /* Release the allocated memory, and clear the cookie data */
         /* upstream */
         cb_assert(es->reserved == ES_CONNECTED_FLAG);
+        /**
+         * Decrement session_cas's counter, if the connection closes
+         * before a control command (that returned ENGINE_EWOULDBLOCK
+         * the first time) makes another attempt.
+         */
+        if (es->engine_specific != NULL) {
+            uint8_t opcode = e->upstream_server->cookie->
+                                    get_opcode_if_ewouldblock_set(cookie);
+            if (opcode == DELETE_BUCKET || opcode == DELETE_BUCKET_DEPRECATED) {
+                bucket_decrement_session_ctr();
+            }
+        }
         release_memory(es, sizeof(*es));
         e->upstream_server->cookie->store_engine_specific(cookie, NULL);
         return;
@@ -2762,11 +2781,6 @@ static ENGINE_ERROR_CODE handle_create_bucket(ENGINE_HANDLE* handle,
                                               ADD_RESPONSE response) {
 
 #define MSGLEN 1024
-    uint64_t cas = ntohll(request->request.cas);
-    if (!bucket_validate_session_cas(cas)) {
-        return ENGINE_KEY_EEXISTS;
-    }
-
     protocol_binary_response_status rc;
     ENGINE_ERROR_CODE ret;
     char msg[MSGLEN];
@@ -2854,11 +2868,6 @@ static ENGINE_ERROR_CODE handle_delete_bucket(ENGINE_HANDLE* handle,
                                               const void* cookie,
                                               protocol_binary_request_header *request,
                                               ADD_RESPONSE response) {
-
-    uint64_t cas = ntohll(request->request.cas);
-    if (!bucket_validate_session_cas(cas)) {
-        return ENGINE_KEY_EEXISTS;
-    }
 
     void *userdata = bucket_get_engine_specific(cookie);
     bool found;
@@ -3156,14 +3165,45 @@ static ENGINE_ERROR_CODE bucket_unknown_command(ENGINE_HANDLE* handle,
     ENGINE_ERROR_CODE rv = ENGINE_ENOTSUP;
     if (is_admin_command(request->request.opcode)) {
         if (is_authorized(handle, cookie)) {
+            /**
+             * Session validation
+             * (For ns_server control commands only)
+             */
+            switch(request->request.opcode) {
+                case CREATE_BUCKET:
+                case CREATE_BUCKET_DEPRECATED:
+                case DELETE_BUCKET:
+                case DELETE_BUCKET_DEPRECATED:
+                {
+                    if (bucket_get_engine_specific(cookie) == NULL) {
+                        uint64_t cas = ntohll(request->request.cas);
+                        if (!bucket_validate_session_cas(cas)) {
+                            const char *msg = "Invalid session token";
+                            response(NULL, 0, NULL, 0, msg, (uint16_t)strlen(msg),
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                                     cas, cookie);
+                            return ENGINE_KEY_EEXISTS;
+                        }
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+
             switch(request->request.opcode) {
             case CREATE_BUCKET:
             case CREATE_BUCKET_DEPRECATED:
                 rv = handle_create_bucket(handle, cookie, request, response);
+                bucket_decrement_session_ctr();
                 break;
             case DELETE_BUCKET:
             case DELETE_BUCKET_DEPRECATED:
                 rv = handle_delete_bucket(handle, cookie, request, response);
+                if (rv != ENGINE_EWOULDBLOCK) {
+                    bucket_decrement_session_ctr();
+                }
                 break;
             case LIST_BUCKETS:
             case LIST_BUCKETS_DEPRECATED:
