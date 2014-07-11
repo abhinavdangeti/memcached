@@ -941,6 +941,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->write_and_free = 0;
     c->item = 0;
     c->supports_datatype = false;
+    c->session_counted = false;
     c->noreply = false;
 
     event_set(&c->event, sfd, event_flags, event_handler, (void *)c);
@@ -7710,26 +7711,33 @@ static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
     return opcode;
 }
 
-static bool validate_session_cas(const uint64_t cas) {
+static bool validate_session_cas(const void *cookie, const uint64_t cas) {
     bool ret = true;
     cb_mutex_enter(&(session_cas.mutex));
+    conn *c = (conn*)cookie;
     if (cas != 0) {
         if (session_cas.value != cas) {
             ret = false;
         } else {
+            c->session_counted = true;
             session_cas.ctr++;
         }
     } else {
+        c->session_counted = true;
         session_cas.ctr++;
     }
     cb_mutex_exit(&(session_cas.mutex));
     return ret;
 }
 
-static void decrement_session_ctr() {
+static void decrement_session_ctr(const void *cookie) {
     cb_mutex_enter(&(session_cas.mutex));
-    cb_assert(session_cas.ctr != 0);
-    session_cas.ctr--;
+    conn *c = (conn*)cookie;
+    if (c->session_counted) {
+        cb_assert(session_cas.ctr != 0);
+        session_cas.ctr--;
+        c->session_counted = false;
+    }
     cb_mutex_exit(&(session_cas.mutex));
 }
 

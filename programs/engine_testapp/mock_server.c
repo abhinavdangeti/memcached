@@ -71,7 +71,7 @@ static uint8_t mock_get_opcode_if_ewouldblock_set(const void *cookie) {
     return 0x00;
 }
 
-static bool mock_validate_session_cas(const uint64_t cas) {
+static bool mock_validate_session_cas(const void *cookie, const uint64_t cas) {
     bool ret = true;
     cb_mutex_enter(&(session_mutex));
     if (cas != 0) {
@@ -87,7 +87,7 @@ static bool mock_validate_session_cas(const uint64_t cas) {
     return ret;
 }
 
-static void mock_decrement_session_ctr() {
+static void mock_decrement_session_ctr(const void *cookie) {
     cb_mutex_enter(&(session_mutex));
     cb_assert(session_ctr != 0);
     session_ctr--;

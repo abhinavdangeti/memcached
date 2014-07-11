@@ -317,6 +317,7 @@ struct conn {
 
     uint8_t refcount; /* number of references to the object */
     bool   supports_datatype;
+    bool   session_counted; /* flag to track if sess_ctr was incremented for cookie */
 
     struct {
         char *buffer;

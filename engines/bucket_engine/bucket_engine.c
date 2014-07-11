@@ -510,15 +510,15 @@ static void* bucket_get_engine_specific(const void *cookie) {
 /**
  * Get the session-token stored in the memcached core.
  */
-static bool bucket_validate_session_cas(const uint64_t cas) {
-    return bucket_engine.upstream_server->cookie->validate_session_cas(cas);
+static bool bucket_validate_session_cas(const void *cookie, const uint64_t cas) {
+    return bucket_engine.upstream_server->cookie->validate_session_cas(cookie, cas);
 }
 
 /**
  * Decrement the session_cas's counter held in memcached core.
  */
-static void bucket_decrement_session_ctr(void) {
-    bucket_engine.upstream_server->cookie->decrement_session_ctr();
+static void bucket_decrement_session_ctr(const void *cookie) {
+    bucket_engine.upstream_server->cookie->decrement_session_ctr(cookie);
 }
 
 /**
@@ -1210,7 +1210,7 @@ static void handle_disconnect(const void *cookie,
             uint8_t opcode = e->upstream_server->cookie->
                                     get_opcode_if_ewouldblock_set(cookie);
             if (opcode == PROTOCOL_BINARY_CMD_DELETE_BUCKET) {
-                bucket_decrement_session_ctr();
+                bucket_decrement_session_ctr(cookie);
             }
         }
         release_memory(es, sizeof(*es));
@@ -3173,7 +3173,7 @@ static ENGINE_ERROR_CODE bucket_unknown_command(ENGINE_HANDLE* handle,
                 {
                     if (bucket_get_engine_specific(cookie) == NULL) {
                         uint64_t cas = ntohll(request->request.cas);
-                        if (!bucket_validate_session_cas(cas)) {
+                        if (!bucket_validate_session_cas(cookie, cas)) {
                             const char *msg = "Invalid session token";
                             response(NULL, 0, NULL, 0, msg, (uint16_t)strlen(msg),
                                      PROTOCOL_BINARY_RAW_BYTES,
@@ -3191,12 +3191,12 @@ static ENGINE_ERROR_CODE bucket_unknown_command(ENGINE_HANDLE* handle,
             switch(request->request.opcode) {
             case PROTOCOL_BINARY_CMD_CREATE_BUCKET:
                 rv = handle_create_bucket(handle, cookie, request, response);
-                bucket_decrement_session_ctr();
+                bucket_decrement_session_ctr(cookie);
                 break;
             case PROTOCOL_BINARY_CMD_DELETE_BUCKET:
                 rv = handle_delete_bucket(handle, cookie, request, response);
                 if (rv != ENGINE_EWOULDBLOCK) {
-                    bucket_decrement_session_ctr();
+                    bucket_decrement_session_ctr(cookie);
                 }
                 break;
             case PROTOCOL_BINARY_CMD_LIST_BUCKETS:

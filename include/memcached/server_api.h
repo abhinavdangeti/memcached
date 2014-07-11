@@ -155,18 +155,21 @@ extern "C" {
          * saved token in memached, and if so incrment the session
          * counter.
          *
+         * @param cookie The cookie provided
          * @param cas The cas token from the request
          *
          * @return true if session cas matches the one saved in
          * memcached
          */
-        bool (*validate_session_cas)(const uint64_t cas);
+        bool (*validate_session_cas)(const void *cookie, const uint64_t cas);
 
         /**
          * Decrement session_cas's counter everytime a control
          * command completes execution.
+         *
+         * @param cookie The cookie provided
          */
-        void (*decrement_session_ctr)(void);
+        void (*decrement_session_ctr)(const void *cookie);
 
         /**
          * Let a connection know that IO has completed.

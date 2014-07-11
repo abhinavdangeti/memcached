@@ -198,7 +198,7 @@ static void *get_engine_specific(const void *cookie) {
     return c ? c->engine_data : NULL;
 }
 
-static bool validate_session_cas(const uint64_t cas) {
+static bool validate_session_cas(const void *cookie, const uint64_t cas) {
     bool ret = true;
     cb_mutex_enter(&(session_mutex));
     if (cas != 0) {
@@ -214,7 +214,7 @@ static bool validate_session_cas(const uint64_t cas) {
     return ret;
 }
 
-static void decrement_session_ctr() {
+static void decrement_session_ctr(const void *cookie) {
     cb_mutex_enter(&(session_mutex));
     cb_assert(session_ctr != 0);
     session_ctr--;
