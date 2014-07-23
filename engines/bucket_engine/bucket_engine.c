@@ -1199,20 +1199,7 @@ static void handle_disconnect(const void *cookie,
         /* Release the allocated memory, and clear the cookie data */
         /* upstream */
         cb_assert(es->reserved == ES_CONNECTED_FLAG);
-        /**
-         * Decrement session_cas's counter, if the connection closes
-         * before a control command (that returned ENGINE_EWOULDBLOCK
-         * the first time) makes another attempt.
-         *
-         * Commands to be considered: DELETE_BUCKET
-         */
-        if (es->engine_specific != NULL) {
-            uint8_t opcode = e->upstream_server->cookie->
-                                    get_opcode_if_ewouldblock_set(cookie);
-            if (opcode == PROTOCOL_BINARY_CMD_DELETE_BUCKET) {
-                bucket_decrement_session_ctr();
-            }
-        }
+
         release_memory(es, sizeof(*es));
         e->upstream_server->cookie->store_engine_specific(cookie, NULL);
         return;
