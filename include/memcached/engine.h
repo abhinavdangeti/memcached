@@ -329,6 +329,30 @@ extern "C" {
                                    uint16_t vbucket);
 
         /**
+         * Performs atomic multi-set operations
+         * If docsToChk is empty then there could be multiple mutations.
+         * Otherwise, the CAS values of keys in docsToChk will need to be
+         * verified for correctness, before all the mutations are applied.
+         *
+         * @param handle the engine handle
+         * @param cookie The cookie provided by the frontend
+         * @param vbucket the virtual bucket id
+         * @param mutations a array of mutations
+         * @param numMutations size of mutations array
+         * @param docsToChk a array of document whose CAS is to be verified
+         * @param numDocsToChk size of docsToChk array
+         *
+         * @param ENGINE_SUCCESS if all goes well
+         */
+        ENGINE_ERROR_CODE (*multi_store)(ENGINE_HANDLE* handle,
+                                         const void *cookie,
+                                         uint16_t vbucket,
+                                         item* mutations[],
+                                         size_t numMutations,
+                                         item_info* docsToChk[],
+                                         size_t numDocsToChk);
+
+        /**
          * Perform an increment or decrement operation on an item.
          *
          * @param handle the engine handle
